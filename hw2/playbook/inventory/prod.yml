@@ -1,0 +1,11 @@
+---
+clickhouse:
+  hosts:
+    clickhouse-01:
+      ansible_host: 1.1.1.1
+      ansible_user: пользователь
+vector:
+  hosts:
+    clickhouse-01:
+      ansible_host: 1.1.1.1
+      ansible_user: пользователь

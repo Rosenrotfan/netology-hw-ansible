@@ -1,0 +1,100 @@
+---
+- name: Install ClickHouse and Vector
+  hosts: clickhouse
+  handlers:
+    - name: Start ClickHouse Server
+      become: true
+      ansible.builtin.service:
+        name: clickhouse-server
+        state: restarted
+    - name: Restart Vector Service
+      become: true
+      ansible.builtin.systemd:
+        name: vector
+        state: restarted
+        enabled: true
+        daemon_reload: true
+  tasks:
+    - block:
+        - name: Download Primary ClickHouse RPM Packages
+          ansible.builtin.get_url:
+            url: "https://packages.clickhouse.com/rpm/stable/{{ item }}-{{ clickhouse_version }}.noarch.rpm"
+            dest: "./{{ item }}-{{ clickhouse_version }}.rpm"
+            mode: '0644'  # Устанавливаем права доступа
+          loop: "{{ clickhouse_packages }}"
+      rescue:
+        - name: Fall Back to Static Build If Necessary
+          ansible.builtin.get_url:
+            url: "https://packages.clickhouse.com/rpm/stable/clickhouse-common-static-{{ clickhouse_version }}.x86_64.rpm"
+            dest: "./clickhouse-common-static-{{ clickhouse_version }}.rpm"
+            mode: '0644'  # Устанавливаем права доступа
+    - name: Install ClickHouse Packages
+      become: true
+      ansible.builtin.yum:
+        name:
+          - clickhouse-common-static-{{ clickhouse_version }}.rpm
+          - clickhouse-client-{{ clickhouse_version }}.rpm
+          - clickhouse-server-{{ clickhouse_version }}.rpm
+      notify: Start ClickHouse Server
+    - name: Flush Handlers
+      ansible.builtin.meta: flush_handlers
+    - name: Create Database Logs
+      ansible.builtin.command: "clickhouse-client -q 'CREATE DATABASE IF NOT EXISTS logs'"
+      register: create_db
+      changed_when: create_db.stdout == ''
+    - name: Create Directories for Vector
+      become: true
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ vector_service_user }}"
+        group: "{{ vector_service_group }}"
+        mode: '0755'
+      loop:
+        - "{{ vector_install_dir }}"
+        - "{{ vector_config_dir }}"
+        - "{{ vector_data_dir }}"
+    - name: Download Vector Binary
+      ansible.builtin.get_url:
+        url: "{{ vector_download_url }}"
+        dest: "/tmp/vector-{{ vector_version }}.tar.gz"
+        mode: '0644'  # Устанавливаем права доступа
+    - name: Unpack Vector Archive
+      become: true
+      ansible.builtin.unarchive:
+        src: "/tmp/vector-{{ vector_version }}.tar.gz"
+        dest: "{{ vector_install_dir }}"
+        remote_src: true
+        extra_opts: ['--strip-components=1']
+    - name: Symlink Vector Binary
+      become: true
+      ansible.builtin.file:
+        src: "{{ vector_install_dir }}/bin/vector"
+        dest: "{{ vector_bin_dir }}/vector"
+        state: link
+        force: true
+    - name: Configure Vector as a Systemd Service
+      become: true
+      ansible.builtin.template:
+        src: vector.service.j2
+        dest: /etc/systemd/system/vector.service
+        owner: "{{ vector_service_user }}"
+        group: "{{ vector_service_group }}"
+        mode: '0644'
+      notify: Restart Vector Service
+    - name: Deploy Vector Configuration
+      become: true
+      ansible.builtin.template:
+        src: vector.j2
+        dest: "{{ vector_config_dir }}/vector.yaml"
+        owner: "{{ vector_service_user }}"
+        group: "{{ vector_service_group }}"
+        mode: '0644'
+      notify: Restart Vector Service
+    - name: Enable and Start Vector Service
+      become: true
+      ansible.builtin.systemd:
+        name: vector
+        state: started
+        enabled: true
+        daemon_reload: true
