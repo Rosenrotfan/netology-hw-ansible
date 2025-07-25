@@ -1,0 +1,4 @@
+---
+lighthouse_vsc: "https://github.com/GoogleChrome/lighthouse-ci.git"
+lighthouse_location_dir: /home/{{ ansible_user }}/dist
+nginx_user_name: "{{ ansible_user }}"

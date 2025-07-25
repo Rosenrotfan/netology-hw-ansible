@@ -1,0 +1,16 @@
+---
+clickhouse:
+  hosts:
+    clickhouse-01:
+      ansible_host: 89.169.180.69
+      ansible_user: rosenrot
+lighthouse:
+  hosts:
+    lighthouse-01:
+      ansible_host: 51.250.18.212
+      ansible_user: rosenrot
+vector:
+  hosts:
+    clickhouse-01:
+      ansible_host: 89.169.188.62
+      ansible_user: rosenrot

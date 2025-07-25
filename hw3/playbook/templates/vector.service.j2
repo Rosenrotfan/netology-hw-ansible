@@ -1,0 +1,13 @@
+[Unit]
+Description=Vector (Log Observer)
+After=network.target
+
+[Service]
+ExecStart={{ vector_bin_dir }}/vector --config /home/vector.yaml
+Restart=always
+User=root
+Group=root
+EnvironmentFile=-/etc/default/vector
+
+[Install]
+WantedBy=multi-user.target
